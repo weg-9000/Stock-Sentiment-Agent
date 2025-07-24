@@ -1,0 +1,10 @@
+aiohttp
+asyncpg
+aioredis
+pydantic
+transformers
+torch  
+kafka-python
+streamlit
+pymilvus
+nest_asyncio
