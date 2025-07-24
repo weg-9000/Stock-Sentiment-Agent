@@ -1,10 +1,20 @@
+# 기존 라이브러리들
 aiohttp
 asyncpg
 aioredis
 pydantic
 transformers
-torch  
+torch
 kafka-python
 streamlit
 pymilvus
 nest_asyncio
+
+# Warm Storage용 추가 라이브러리
+influxdb-client>=1.36.0
+opensearch-py>=2.0.0
+
+# Cold Storage용 추가 라이브러리  
+boto3>=1.26.0
+pandas>=1.5.0
+pyarrow>=10.0.0
