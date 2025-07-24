@@ -70,46 +70,23 @@ graph TD
     %% 데이터 스트리밍
     Streamer --> Kafka[📊 Kafka Topics<br/>stock-sentiment<br/>stock-social-raw<br/>stock-price-raw]
     
-    %% 다층 저장소 구조
-    subgraph "💾 다층 저장소 아키텍처"
-        %% Hot Storage (24시간)
-        subgraph "🔥 Hot Storage"
-            HotDB[Hot Database<br/>storage/hot_db.py]
-            PostgreSQL[🗄️ PostgreSQL<br/>sentiment 테이블]
-            Redis[⚡ Redis Cache<br/>5분 TTL]
-            HotDB --> PostgreSQL
-            HotDB --> Redis
-        end
-        
-        %% Warm Storage (30일)
-        subgraph "🌡️ Warm Storage"
-            WarmDB[Warm Database<br/>storage/warm_db.py]
-            InfluxDB[📈 InfluxDB<br/>시계열 데이터]
-            OpenSearch[🔍 OpenSearch<br/>전문 검색]
-            WarmDB --> InfluxDB
-            WarmDB --> OpenSearch
-        end
-        
-        %% Cold Storage (무제한)
-        subgraph "❄️ Cold Storage"
-            ColdStorage[Cold Storage<br/>storage/cold_db.py]
-            ObjectStorage[☁️ NAVER Object Storage<br/>Parquet 아카이브]
-            ColdStorage --> ObjectStorage
-        end
-        
-        %% Vector Storage (7일)
-        subgraph "🔍 Vector Storage"
-            VectorSearch[Vector Search<br/>storage/vector_search.py]
-            Milvus[🧠 Milvus<br/>벡터 임베딩]
-            VectorSearch --> Milvus
-        end
-    end
+    %% Hot Storage (24시간)
+    StorageManager --> HotDB[🔥 Hot Database<br/>storage/hot_db.py]
+    HotDB --> PostgreSQL[🗄️ PostgreSQL<br/>sentiment 테이블]
+    HotDB --> Redis[⚡ Redis Cache<br/>5분 TTL]
     
-    %% 스토리지 매니저 연결
-    StorageManager --> HotDB
-    StorageManager --> WarmDB
-    StorageManager --> ColdStorage
-    StorageManager --> VectorSearch
+    %% Warm Storage (30일)
+    StorageManager --> WarmDB[🌡️ Warm Database<br/>storage/warm_db.py]
+    WarmDB --> InfluxDB[📈 InfluxDB<br/>시계열 데이터]
+    WarmDB --> OpenSearch[🔍 OpenSearch<br/>전문 검색]
+    
+    %% Cold Storage (무제한)
+    StorageManager --> ColdStorage[❄️ Cold Storage<br/>storage/cold_db.py]
+    ColdStorage --> ObjectStorage[☁️ NAVER Object Storage<br/>Parquet 아카이브]
+    
+    %% Vector Storage (7일)
+    StorageManager --> VectorSearch[🔍 Vector Search<br/>storage/vector_search.py]
+    VectorSearch --> Milvus[🧠 Milvus<br/>벡터 임베딩]
     
     %% 스트림 처리
     Kafka --> StreamProcessor[🌊 Stream Processor<br/>stream_processor.py<br/>Apache Flink]
@@ -123,7 +100,7 @@ graph TD
     Config -.-> StorageManager
     Config -.-> Streamer
     
-    %% 데이터 흐름 표시
+    %% 스타일링
     classDef primaryFlow fill:#e1f5fe,stroke:#01579b,stroke-width:2px
     classDef hot fill:#ffebee,stroke:#c62828,stroke-width:2px
     classDef warm fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
@@ -134,7 +111,7 @@ graph TD
     
     class Agent,MCP,Analyzer,Streamer,StorageManager primaryFlow
     class HotDB,PostgreSQL,Redis hot
-    class WarmDB,InfluxDB,OpenSearch warm  
+    class WarmDB,InfluxDB,OpenSearch warm
     class ColdStorage,ObjectStorage cold
     class VectorSearch,Milvus vector
     class TwitterAPI,AlphaAPI externalAPI
