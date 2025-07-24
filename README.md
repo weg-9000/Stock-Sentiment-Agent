@@ -53,7 +53,7 @@ graph TD
     Agent --> MCP[🔌 MCP Client<br/>mcp_client.py]
     Agent --> Analyzer[🧠 Sentiment Analyzer<br/>sentiment_analyzer.py]
     Agent --> Streamer[📡 Data Streamer<br/>data_streamer.py]
-    Agent --> HotDB[💾 Hot Database<br/>storage/hot_db.py]
+    Agent --> StorageManager[⚙️ Storage Manager<br/>storage/__init__.py]
     
     %% MCP 도구 연동
     MCP --> Twitter[🐦 Twitter MCP<br/>search_tweets<br/>get_trending_topics]
@@ -70,29 +70,73 @@ graph TD
     %% 데이터 스트리밍
     Streamer --> Kafka[📊 Kafka Topics<br/>stock-sentiment<br/>stock-social-raw<br/>stock-price-raw]
     
-    %% 데이터 저장
-    HotDB --> PostgreSQL[🗄️ PostgreSQL<br/>sentiment 테이블]
-    HotDB --> Redis[⚡ Redis Cache<br/>5분 TTL]
+    %% 다층 저장소 구조
+    subgraph "💾 다층 저장소 아키텍처"
+        %% Hot Storage (24시간)
+        subgraph "🔥 Hot Storage"
+            HotDB[Hot Database<br/>storage/hot_db.py]
+            PostgreSQL[🗄️ PostgreSQL<br/>sentiment 테이블]
+            Redis[⚡ Redis Cache<br/>5분 TTL]
+            HotDB --> PostgreSQL
+            HotDB --> Redis
+        end
+        
+        %% Warm Storage (30일)
+        subgraph "🌡️ Warm Storage"
+            WarmDB[Warm Database<br/>storage/warm_db.py]
+            InfluxDB[📈 InfluxDB<br/>시계열 데이터]
+            OpenSearch[🔍 OpenSearch<br/>전문 검색]
+            WarmDB --> InfluxDB
+            WarmDB --> OpenSearch
+        end
+        
+        %% Cold Storage (무제한)
+        subgraph "❄️ Cold Storage"
+            ColdStorage[Cold Storage<br/>storage/cold_db.py]
+            ObjectStorage[☁️ NAVER Object Storage<br/>Parquet 아카이브]
+            ColdStorage --> ObjectStorage
+        end
+        
+        %% Vector Storage (7일)
+        subgraph "🔍 Vector Storage"
+            VectorSearch[Vector Search<br/>storage/vector_search.py]
+            Milvus[🧠 Milvus<br/>벡터 임베딩]
+            VectorSearch --> Milvus
+        end
+    end
     
-    %% 스트림 처리 (추가 컴포넌트)
+    %% 스토리지 매니저 연결
+    StorageManager --> HotDB
+    StorageManager --> WarmDB
+    StorageManager --> ColdStorage
+    StorageManager --> VectorSearch
+    
+    %% 스트림 처리
     Kafka --> StreamProcessor[🌊 Stream Processor<br/>stream_processor.py<br/>Apache Flink]
-    StreamProcessor --> VectorSearch[🔍 Vector Search<br/>storage/vector_search.py<br/>Milvus]
+    StreamProcessor --> WarmDB
+    StreamProcessor --> ColdStorage
     
     %% 설정 관리
     Config[⚙️ Configuration<br/>config.py<br/>Pydantic Settings] -.-> Agent
     Config -.-> MCP
     Config -.-> HyperCLOVA
-    Config -.-> HotDB
+    Config -.-> StorageManager
     Config -.-> Streamer
     
     %% 데이터 흐름 표시
     classDef primaryFlow fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef dataStore fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef externalAPI fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef processing fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef hot fill:#ffebee,stroke:#c62828,stroke-width:2px
+    classDef warm fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef cold fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    classDef vector fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef externalAPI fill:#fff8e1,stroke:#fbc02d,stroke-width:2px
+    classDef processing fill:#e0f2f1,stroke:#00695c,stroke-width:2px
     
-    class Agent,MCP,Analyzer,Streamer primaryFlow
-    class PostgreSQL,Redis,Kafka,VectorSearch dataStore
+    class Agent,MCP,Analyzer,Streamer,StorageManager primaryFlow
+    class HotDB,PostgreSQL,Redis hot
+    class WarmDB,InfluxDB,OpenSearch warm  
+    class ColdStorage,ObjectStorage cold
+    class VectorSearch,Milvus vector
     class TwitterAPI,AlphaAPI externalAPI
     class Light,HyperCLOVA,StreamProcessor processing
 ```
@@ -131,18 +175,37 @@ graph TB
         StreamProcessor[Stream Processor<br/>stream_processor.py]
     end
     
-    subgraph "💾 데이터 저장 계층"
-        HotDB[Hot DB<br/>storage/hot_db.py]
-        PostgreSQL[(PostgreSQL<br/>실시간 지표)]
-        Redis[(Redis Cache<br/>5분 TTL)]
-        VectorDB[Vector Search<br/>storage/vector_search.py]
-        Milvus[(Milvus<br/>임베딩 검색)]
+    subgraph "💾 다층 데이터 저장 계층"
+        StorageManager[Storage Manager<br/>storage/__init__.py]
+        
+        subgraph "🔥 Hot Storage (24시간)"
+            HotDB[Hot DB<br/>storage/hot_db.py]
+            PostgreSQL[(PostgreSQL<br/>실시간 지표)]
+            Redis[(Redis Cache<br/>5분 TTL)]
+        end
+        
+        subgraph "🌡️ Warm Storage (30일)"
+            WarmDB[Warm DB<br/>storage/warm_db.py]
+            InfluxDB[(InfluxDB<br/>시계열 분석)]
+            OpenSearch[(OpenSearch<br/>전문 검색)]
+        end
+        
+        subgraph "❄️ Cold Storage (무제한)"
+            ColdStorage[Cold Storage<br/>storage/cold_db.py]
+            ObjectStorage[(NAVER Object Storage<br/>Parquet 아카이브)]
+        end
+        
+        subgraph "🔍 Vector Storage (7일)"
+            VectorDB[Vector Search<br/>storage/vector_search.py]
+            Milvus[(Milvus<br/>벡터 임베딩)]
+        end
     end
     
     subgraph "🌐 외부 서비스 계층"
         TwitterAPI[Twitter API v2]
         AlphaAPI[AlphaVantage API]
         ClovaAPI[CLOVA Studio API]
+        NCObjectAPI[NAVER Cloud Object Storage]
     end
     
     %% 계층 간 연결
@@ -151,7 +214,7 @@ graph TB
     Agent --> MCP
     Agent --> Analyzer
     Agent --> Streamer
-    Agent --> HotDB
+    Agent --> StorageManager
     
     MCP --> Twitter
     MCP --> Alpha
@@ -163,13 +226,25 @@ graph TB
     Streamer --> Kafka
     Kafka --> StreamProcessor
     
+    %% 스토리지 관리
+    StorageManager --> HotDB
+    StorageManager --> WarmDB
+    StorageManager --> ColdStorage
+    StorageManager --> VectorDB
+    
+    %% 스토리지 내부 연결
     HotDB --> PostgreSQL
     HotDB --> Redis
+    WarmDB --> InfluxDB
+    WarmDB --> OpenSearch
+    ColdStorage --> ObjectStorage
     VectorDB --> Milvus
     
+    %% 외부 API 연결
     Twitter --> TwitterAPI
     Alpha --> AlphaAPI
     HyperCLOVA --> ClovaAPI
+    ColdStorage --> NCObjectAPI
     
     %% 스타일링
     classDef presentation fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
@@ -177,7 +252,11 @@ graph TB
     classDef integration fill:#fff3e0,stroke:#f57f17,stroke-width:2px
     classDef ai fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
     classDef streaming fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    classDef storage fill:#f1f8e9,stroke:#689f38,stroke-width:2px
+    classDef manager fill:#f5f5f5,stroke:#424242,stroke-width:2px
+    classDef hot fill:#ffebee,stroke:#c62828,stroke-width:2px
+    classDef warm fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef cold fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    classDef vector fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
     classDef external fill:#fff8e1,stroke:#fbc02d,stroke-width:2px
     
     class UI,API presentation
@@ -185,8 +264,12 @@ graph TB
     class MCP,Twitter,Alpha,Apify integration
     class Analyzer,Light,HyperCLOVA ai
     class Streamer,Kafka,StreamProcessor streaming
-    class HotDB,PostgreSQL,Redis,VectorDB,Milvus storage
-    class TwitterAPI,AlphaAPI,ClovaAPI external
+    class StorageManager manager
+    class HotDB,PostgreSQL,Redis hot
+    class WarmDB,InfluxDB,OpenSearch warm
+    class ColdStorage,ObjectStorage cold
+    class VectorDB,Milvus vector
+    class TwitterAPI,AlphaAPI,ClovaAPI,NCObjectAPI external
 ```
 
 ## 💾 다층 저장소 아키텍처
