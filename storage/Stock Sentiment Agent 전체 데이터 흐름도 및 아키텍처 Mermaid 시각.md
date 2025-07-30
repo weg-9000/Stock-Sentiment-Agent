@@ -1,4 +1,3 @@
-<img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" class="logo" width="120"/>
 
 # Stock Sentiment Agent 전체 데이터 흐름도 및 아키텍처 Mermaid 시각화
 
